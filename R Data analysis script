@@ -1,0 +1,58 @@
+library(data.table)
+library(stringi)
+library(ggplot2)
+library(plotly)
+library(ggplot)
+
+#Combining the different datascrapes
+files <- list.files(pattern="*.csv")
+Flight_data <- do.call("rbind", lapply(files, read.csv, header = TRUE))
+
+Clean_data <- data.frame()
+
+#Removing all wrong data
+for(i in 1:nrow(Flight_data) ){
+  if(Flight_data$Departure.Location.Airpot[i] != "Los Angeles" &&
+     Flight_data$Airline[i] != "Undefined")
+    
+    Clean_data <- rbind(Clean_data, Flight_data[i,])
+}
+
+#Changing the stop values
+Clean_data$Stops <- as.character(Clean_data$Stops)
+Clean_data$Stops[Clean_data$Stops == "1 Stop"] <-  1
+Clean_data$Stops[Clean_data$Stops == "Nonstop"] <- 0
+Clean_data$Stops[Clean_data$Stops == "2 Stops"] <- 2
+
+#Transforming the data from frame -> table
+dataset <- as.data.table(Clean_data)
+
+#Getting all the right variableformats
+dataset$Price <- as.numeric(dataset$Price)
+dataset$Departure.Location.Airpot <- as.character(dataset$Departure.Location.Airpot)
+dataset$Arrival.Location.Airport <- as.character(dataset$Arrival.Location.Airport)
+dataset$Airline <- as.character(dataset$Airline)
+dataset$Plane <- as.character(dataset$Plane)
+dataset$Stops <- as.numeric(dataset$Stops)
+dataset$Plane.Code <- as.character(dataset$Plane.Code)
+dataset$Departure.Time <- as.character.Date(dataset$Departure.Time)
+dataset$Arrival.Time <- as.character.Date(dataset$Arrival.Time)
+dataset$Date.of.Scrape <- as.character.Date(dataset$Date.of.Scrape)
+dataset$Days.until.departure <- as.numeric(dataset$Days.until.departure)
+
+#Sorting the dataset
+dataset <- dataset[order(Airline)][order(Price)]
+dataset[, mean(Price), by = "Airline"]
+dataset <- dataset[order(Airline)]
+
+dataset1 <- dataset[, c("Price", "Airline", "Days.until.departure")]
+#dataset1 <- dataset1[!(dataset1$Days.until.departure>46)]
+dataset1 <- dataset1[, price_mean:=mean(Price), by = list(Airline, Days.until.departure)]
+dataset1$price_mean <- as.numeric(dataset1$price_mean)
+dataset1 <- dataset1[order(Days.until.departure)]
+
+#Plotting the prices per airline
+p_line2 <- plot_ly(dataset1, x=~Days.until.departure, y=~price_mean, color =~Airline, mode = 'line')%>% 
+  layout(xaxis = list(autorange = "reversed")) %>%
+  layout(xaxis=list(tickvals=~Days.until.departure,ticktext=~Days.until.departure))
+p_line2
